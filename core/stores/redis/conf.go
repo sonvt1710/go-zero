@@ -1,6 +1,9 @@
 package redis
 
-import "errors"
+import (
+	"errors"
+	"time"
+)
 
 var (
 	// ErrEmptyHost is an error that indicates no redis host is set.
@@ -9,23 +12,25 @@ var (
 	ErrEmptyType = errors.New("empty redis type")
 	// ErrEmptyKey is an error that indicates no redis key is set.
 	ErrEmptyKey = errors.New("empty redis key")
-	// ErrPing is an error that indicates ping failed.
-	ErrPing = errors.New("ping redis failed")
 )
 
 type (
 	// A RedisConf is a redis config.
 	RedisConf struct {
-		Host string
-		Type string `json:",default=node,options=node|cluster"`
-		Pass string `json:",optional"`
-		Tls  bool   `json:",optional"`
+		Host     string
+		Type     string `json:",default=node,options=node|cluster"`
+		User     string `json:",optional"`
+		Pass     string `json:",optional"`
+		Tls      bool   `json:",optional"`
+		NonBlock bool   `json:",default=true"`
+		// PingTimeout is the timeout for ping redis.
+		PingTimeout time.Duration `json:",default=1s"`
 	}
 
 	// A RedisKeyConf is a redis config with key.
 	RedisKeyConf struct {
 		RedisConf
-		Key string `json:",optional"`
+		Key string
 	}
 )
 
@@ -36,6 +41,9 @@ func (rc RedisConf) NewRedis() *Redis {
 	if rc.Type == ClusterType {
 		opts = append(opts, Cluster())
 	}
+	if len(rc.User) > 0 {
+		opts = append(opts, WithUser(rc.User))
+	}
 	if len(rc.Pass) > 0 {
 		opts = append(opts, WithPass(rc.Pass))
 	}
@@ -43,7 +51,7 @@ func (rc RedisConf) NewRedis() *Redis {
 		opts = append(opts, WithTLS())
 	}
 
-	return New(rc.Host, opts...)
+	return newRedis(rc.Host, opts...)
 }
 
 // Validate validates the RedisConf.

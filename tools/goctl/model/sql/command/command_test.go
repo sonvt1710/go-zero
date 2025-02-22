@@ -2,7 +2,6 @@ package command
 
 import (
 	_ "embed"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"sort"
@@ -10,7 +9,6 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-
 	"github.com/zeromicro/go-zero/tools/goctl/config"
 	"github.com/zeromicro/go-zero/tools/goctl/model/sql/gen"
 	"github.com/zeromicro/go-zero/tools/goctl/util/pathx"
@@ -76,12 +74,12 @@ func TestFromDDl(t *testing.T) {
 	user1Sql := filepath.Join(tempDir, "user1.sql")
 	user2Sql := filepath.Join(tempDir, "user2.sql")
 
-	err = ioutil.WriteFile(user1Sql, []byte(sql), os.ModePerm)
+	err = os.WriteFile(user1Sql, []byte(sql), os.ModePerm)
 	if err != nil {
 		return
 	}
 
-	err = ioutil.WriteFile(user2Sql, []byte(sql), os.ModePerm)
+	err = os.WriteFile(user2Sql, []byte(sql), os.ModePerm)
 	if err != nil {
 		return
 	}

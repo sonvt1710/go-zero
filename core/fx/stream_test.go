@@ -398,16 +398,16 @@ func TestWalk(t *testing.T) {
 
 func TestStream_AnyMach(t *testing.T) {
 	runCheckedTest(t, func(t *testing.T) {
-		assetEqual(t, false, Just(1, 2, 3).AnyMach(func(item any) bool {
+		assetEqual(t, false, Just(1, 2, 3).AnyMatch(func(item any) bool {
 			return item.(int) == 4
 		}))
-		assetEqual(t, false, Just(1, 2, 3).AnyMach(func(item any) bool {
+		assetEqual(t, false, Just(1, 2, 3).AnyMatch(func(item any) bool {
 			return item.(int) == 0
 		}))
-		assetEqual(t, true, Just(1, 2, 3).AnyMach(func(item any) bool {
+		assetEqual(t, true, Just(1, 2, 3).AnyMatch(func(item any) bool {
 			return item.(int) == 2
 		}))
-		assetEqual(t, true, Just(1, 2, 3).AnyMach(func(item any) bool {
+		assetEqual(t, true, Just(1, 2, 3).AnyMatch(func(item any) bool {
 			return item.(int) == 2
 		}))
 	})
@@ -416,17 +416,17 @@ func TestStream_AnyMach(t *testing.T) {
 func TestStream_AllMach(t *testing.T) {
 	runCheckedTest(t, func(t *testing.T) {
 		assetEqual(
-			t, true, Just(1, 2, 3).AllMach(func(item any) bool {
+			t, true, Just(1, 2, 3).AllMatch(func(item any) bool {
 				return true
 			}),
 		)
 		assetEqual(
-			t, false, Just(1, 2, 3).AllMach(func(item any) bool {
+			t, false, Just(1, 2, 3).AllMatch(func(item any) bool {
 				return false
 			}),
 		)
 		assetEqual(
-			t, false, Just(1, 2, 3).AllMach(func(item any) bool {
+			t, false, Just(1, 2, 3).AllMatch(func(item any) bool {
 				return item.(int) == 1
 			}),
 		)
@@ -500,6 +500,83 @@ func TestStream_Concat(t *testing.T) {
 
 		just := Just(1)
 		equal(t, just.Concat(just), []any{1})
+	})
+}
+
+func TestStream_Max(t *testing.T) {
+	runCheckedTest(t, func(t *testing.T) {
+		tests := []struct {
+			name     string
+			elements []any
+			max      any
+		}{
+			{
+				name: "no elements with nil",
+			},
+			{
+				name:     "no elements",
+				elements: []any{},
+				max:      nil,
+			},
+			{
+				name:     "1 element",
+				elements: []any{1},
+				max:      1,
+			},
+			{
+				name:     "multiple elements",
+				elements: []any{1, 2, 9, 5, 8},
+				max:      9,
+			},
+		}
+
+		for _, test := range tests {
+			t.Run(test.name, func(t *testing.T) {
+				val := Just(test.elements...).Max(func(a, b any) bool {
+					return a.(int) < b.(int)
+				})
+				assetEqual(t, test.max, val)
+			})
+		}
+	})
+}
+
+func TestStream_Min(t *testing.T) {
+	runCheckedTest(t, func(t *testing.T) {
+		tests := []struct {
+			name     string
+			elements []any
+			min      any
+		}{
+			{
+				name: "no elements with nil",
+				min:  nil,
+			},
+			{
+				name:     "no elements",
+				elements: []any{},
+				min:      nil,
+			},
+			{
+				name:     "1 element",
+				elements: []any{1},
+				min:      1,
+			},
+			{
+				name:     "multiple elements",
+				elements: []any{-1, 1, 2, 9, 5, 8},
+				min:      -1,
+			},
+		}
+
+		for _, test := range tests {
+			t.Run(test.name, func(t *testing.T) {
+				val := Just(test.elements...).Min(func(a, b any) bool {
+					return a.(int) < b.(int)
+				})
+				assetEqual(t, test.min, val)
+			})
+		}
 	})
 }
 

@@ -14,7 +14,7 @@ const (
 )
 
 // NewRpcPubServer returns a Server.
-func NewRpcPubServer(etcd discov.EtcdConf, listenOn string, middlewares ServerMiddlewaresConf,
+func NewRpcPubServer(etcd discov.EtcdConf, listenOn string,
 	opts ...ServerOption) (Server, error) {
 	registerEtcd := func() error {
 		pubListenOn := figureOutListenOn(listenOn)
@@ -26,12 +26,15 @@ func NewRpcPubServer(etcd discov.EtcdConf, listenOn string, middlewares ServerMi
 			pubOpts = append(pubOpts, discov.WithPubEtcdTLS(etcd.CertFile, etcd.CertKeyFile,
 				etcd.CACertFile, etcd.InsecureSkipVerify))
 		}
+		if etcd.HasID() {
+			pubOpts = append(pubOpts, discov.WithId(etcd.ID))
+		}
 		pubClient := discov.NewPublisher(etcd.Hosts, etcd.Key, pubListenOn, pubOpts...)
 		return pubClient.KeepAlive()
 	}
 	server := keepAliveServer{
 		registerEtcd: registerEtcd,
-		Server:       NewRpcServer(listenOn, middlewares, opts...),
+		Server:       NewRpcServer(listenOn, opts...),
 	}
 
 	return server, nil

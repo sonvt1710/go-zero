@@ -11,7 +11,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/logrusorgru/aurora"
+	"github.com/gookit/color"
 	"github.com/spf13/cobra"
 	"github.com/zeromicro/go-zero/core/logx"
 	apiformat "github.com/zeromicro/go-zero/tools/goctl/api/format"
@@ -38,7 +38,8 @@ var (
 	// VarStringBranch describes the branch.
 	VarStringBranch string
 	// VarStringStyle describes the style of output files.
-	VarStringStyle string
+	VarStringStyle  string
+	VarBoolWithTest bool
 )
 
 // GoCommand gen go project files from command line
@@ -49,6 +50,7 @@ func GoCommand(_ *cobra.Command, _ []string) error {
 	home := VarStringHome
 	remote := VarStringRemote
 	branch := VarStringBranch
+	withTest := VarBoolWithTest
 	if len(remote) > 0 {
 		repo, _ := util.CloneIntoGitHome(remote, branch)
 		if len(repo) > 0 {
@@ -66,11 +68,11 @@ func GoCommand(_ *cobra.Command, _ []string) error {
 		return errors.New("missing -dir")
 	}
 
-	return DoGenProject(apiFile, dir, namingStyle)
+	return DoGenProject(apiFile, dir, namingStyle, withTest)
 }
 
 // DoGenProject gen go project files with api file
-func DoGenProject(apiFile, dir, style string) error {
+func DoGenProject(apiFile, dir, style string, withTest bool) error {
 	api, err := parser.Parse(apiFile)
 	if err != nil {
 		return err
@@ -100,6 +102,10 @@ func DoGenProject(apiFile, dir, style string) error {
 	logx.Must(genHandlers(dir, rootPkg, cfg, api))
 	logx.Must(genLogic(dir, rootPkg, cfg, api))
 	logx.Must(genMiddleware(dir, cfg, api))
+	if withTest {
+		logx.Must(genHandlersTest(dir, rootPkg, cfg, api))
+		logx.Must(genLogicTest(dir, rootPkg, cfg, api))
+	}
 
 	if err := backupAndSweep(apiFile); err != nil {
 		return err
@@ -109,7 +115,7 @@ func DoGenProject(apiFile, dir, style string) error {
 		return err
 	}
 
-	fmt.Println(aurora.Green("Done."))
+	fmt.Println(color.Green.Render("Done."))
 	return nil
 }
 
@@ -152,14 +158,14 @@ func sweep() error {
 			seconds, err := strconv.ParseInt(timestamp, 10, 64)
 			if err != nil {
 				// print error and ignore
-				fmt.Println(aurora.Red(fmt.Sprintf("sweep ignored file: %s", fpath)))
+				fmt.Println(color.Red.Sprintf("sweep ignored file: %s", fpath))
 				return nil
 			}
 
 			tm := time.Unix(seconds, 0)
 			if tm.Before(keepTime) {
-				if err := os.Remove(fpath); err != nil {
-					fmt.Println(aurora.Red(fmt.Sprintf("failed to remove file: %s", fpath)))
+				if err := os.RemoveAll(fpath); err != nil {
+					fmt.Println(color.Red.Sprintf("failed to remove file: %s", fpath))
 					return err
 				}
 			}

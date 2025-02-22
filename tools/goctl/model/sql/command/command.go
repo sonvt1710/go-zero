@@ -7,7 +7,6 @@ import (
 
 	"github.com/go-sql-driver/mysql"
 	"github.com/spf13/cobra"
-
 	"github.com/zeromicro/go-zero/core/collection"
 	"github.com/zeromicro/go-zero/core/logx"
 	"github.com/zeromicro/go-zero/core/stores/postgres"
@@ -35,8 +34,6 @@ var (
 	VarStringURL string
 	// VarStringSliceTable describes tables.
 	VarStringSliceTable []string
-	// VarStringTable describes a table of sql.
-	VarStringTable string
 	// VarStringStyle describes the style.
 	VarStringStyle string
 	// VarStringDatabase describes the database.
@@ -53,6 +50,8 @@ var (
 	VarBoolStrict bool
 	// VarStringSliceIgnoreColumns represents the columns which are ignored.
 	VarStringSliceIgnoreColumns []string
+	// VarStringCachePrefix describes the prefix of cache.
+	VarStringCachePrefix string
 )
 
 var errNotMatched = errors.New("sql not matched")
@@ -60,6 +59,9 @@ var errNotMatched = errors.New("sql not matched")
 // MysqlDDL generates model code from ddl
 func MysqlDDL(_ *cobra.Command, _ []string) error {
 	migrationnotes.BeforeCommands(VarStringDir, VarStringStyle)
+	if VarBoolCache && len(VarStringCachePrefix) == 0 {
+		return errors.New("cache prefix is empty")
+	}
 	src := VarStringSrc
 	dir := VarStringDir
 	cache := VarBoolCache
@@ -92,6 +94,7 @@ func MysqlDDL(_ *cobra.Command, _ []string) error {
 		database:      database,
 		strict:        VarBoolStrict,
 		ignoreColumns: mergeColumns(VarStringSliceIgnoreColumns),
+		prefix:        VarStringCachePrefix,
 	}
 	return fromDDL(arg)
 }
@@ -99,6 +102,9 @@ func MysqlDDL(_ *cobra.Command, _ []string) error {
 // MySqlDataSource generates model code from datasource
 func MySqlDataSource(_ *cobra.Command, _ []string) error {
 	migrationnotes.BeforeCommands(VarStringDir, VarStringStyle)
+	if VarBoolCache && len(VarStringCachePrefix) == 0 {
+		return errors.New("cache prefix is empty")
+	}
 	url := strings.TrimSpace(VarStringURL)
 	dir := strings.TrimSpace(VarStringDir)
 	cache := VarBoolCache
@@ -133,6 +139,7 @@ func MySqlDataSource(_ *cobra.Command, _ []string) error {
 		idea:          idea,
 		strict:        VarBoolStrict,
 		ignoreColumns: mergeColumns(VarStringSliceIgnoreColumns),
+		prefix:        VarStringCachePrefix,
 	}
 	return fromMysqlDataSource(arg)
 }
@@ -211,13 +218,14 @@ func PostgreSqlDataSource(_ *cobra.Command, _ []string) error {
 		schema = "public"
 	}
 
-	pattern := strings.TrimSpace(VarStringTable)
+	patterns := parseTableList(VarStringSliceTable)
 	cfg, err := config.NewConfig(style)
 	if err != nil {
 		return err
 	}
+	ignoreColumns := mergeColumns(VarStringSliceIgnoreColumns)
 
-	return fromPostgreSqlDataSource(url, pattern, dir, schema, cfg, cache, idea, VarBoolStrict)
+	return fromPostgreSqlDataSource(url, patterns, dir, schema, cfg, cache, idea, VarBoolStrict, ignoreColumns)
 }
 
 type ddlArg struct {
@@ -227,6 +235,7 @@ type ddlArg struct {
 	database      string
 	strict        bool
 	ignoreColumns []string
+	prefix        string
 }
 
 func fromDDL(arg ddlArg) error {
@@ -245,7 +254,7 @@ func fromDDL(arg ddlArg) error {
 		return errNotMatched
 	}
 
-	generator, err := gen.NewDefaultGenerator(arg.dir, arg.cfg,
+	generator, err := gen.NewDefaultGenerator(arg.prefix, arg.dir, arg.cfg,
 		gen.WithConsoleOption(log), gen.WithIgnoreColumns(arg.ignoreColumns))
 	if err != nil {
 		return err
@@ -268,6 +277,7 @@ type dataSourceArg struct {
 	cache, idea   bool
 	strict        bool
 	ignoreColumns []string
+	prefix        string
 }
 
 func fromMysqlDataSource(arg dataSourceArg) error {
@@ -320,7 +330,7 @@ func fromMysqlDataSource(arg dataSourceArg) error {
 		return errors.New("no tables matched")
 	}
 
-	generator, err := gen.NewDefaultGenerator(arg.dir, arg.cfg,
+	generator, err := gen.NewDefaultGenerator(arg.prefix, arg.dir, arg.cfg,
 		gen.WithConsoleOption(log), gen.WithIgnoreColumns(arg.ignoreColumns))
 	if err != nil {
 		return err
@@ -329,7 +339,7 @@ func fromMysqlDataSource(arg dataSourceArg) error {
 	return generator.StartFromInformationSchema(matchTables, arg.cache, arg.strict)
 }
 
-func fromPostgreSqlDataSource(url, pattern, dir, schema string, cfg *config.Config, cache, idea, strict bool) error {
+func fromPostgreSqlDataSource(url string, pattern pattern, dir, schema string, cfg *config.Config, cache, idea, strict bool, ignoreColumns []string) error {
 	log := console.NewConsole(idea)
 	if len(url) == 0 {
 		log.Error("%v", "expected data source of postgresql, but nothing found")
@@ -350,12 +360,7 @@ func fromPostgreSqlDataSource(url, pattern, dir, schema string, cfg *config.Conf
 
 	matchTables := make(map[string]*model.Table)
 	for _, item := range tables {
-		match, err := filepath.Match(pattern, item)
-		if err != nil {
-			return err
-		}
-
-		if !match {
+		if !pattern.Match(item) {
 			continue
 		}
 
@@ -376,7 +381,7 @@ func fromPostgreSqlDataSource(url, pattern, dir, schema string, cfg *config.Conf
 		return errors.New("no tables matched")
 	}
 
-	generator, err := gen.NewDefaultGenerator(dir, cfg, gen.WithConsoleOption(log), gen.WithPostgreSql())
+	generator, err := gen.NewDefaultGenerator("", dir, cfg, gen.WithConsoleOption(log), gen.WithPostgreSql(), gen.WithIgnoreColumns(ignoreColumns))
 	if err != nil {
 		return err
 	}
